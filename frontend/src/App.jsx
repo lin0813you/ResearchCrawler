@@ -48,7 +48,7 @@ export default function App() {
     setLastQuery(trimmed);
     setLoading(true);
     setError("");
-    setStatus(`正在查詢「${trimmed}」的獎項資料...`);
+    setStatus(`正在查詢「${trimmed}」的研究資料...`);
 
     try {
       const response = await fetch(
@@ -94,7 +94,7 @@ export default function App() {
           <span className="brand-mark">RC</span>
           <div className="brand-copy">
             <p className="brand-title">ResearchCrawler</p>
-            <p className="brand-subtitle">NSTC 獎項資料搜尋</p>
+            <p className="brand-subtitle">研究資料蒐集與洞察</p>
           </div>
         </div>
         <div className="status-chip">
@@ -105,22 +105,8 @@ export default function App() {
 
       <main>
         <section className="hero">
-          <div className="hero-copy">
-            <p className="hero-kicker">Research Awards Insight</p>
-            <h1>輸入主持人姓名，立即整理獎項資料</h1>
-            <p className="hero-body">
-              前端只需回傳 pi_name，後端即時爬取與清洗資料。以下結果包含
-              計畫資訊、金額、摘要與關鍵字，讓你快速完成前端呈現。
-            </p>
-            <div className="hero-badges">
-              <span>即時爬蟲</span>
-              <span>中文欄位</span>
-              <span>一致格式</span>
-            </div>
-          </div>
-
           <form className="search-panel" onSubmit={handleSubmit}>
-            <label htmlFor="pi-name">主持人姓名 (pi_name)</label>
+            <label htmlFor="pi-name">計劃主持人姓名</label>
             <div className="input-row">
               <input
                 id="pi-name"
@@ -141,7 +127,46 @@ export default function App() {
             <div className={`status-bar ${error ? "error" : ""}`}>
               {error || status}
             </div>
+            <div className="search-preview">
+              <p className="preview-title">輸出欄位預覽</p>
+              <div className="preview-tags">
+                <span>計畫名稱</span>
+                <span>主持人</span>
+                <span>機構</span>
+                <span>執行期程</span>
+                <span>核定金額</span>
+                <span>計畫摘要</span>
+                <span>關鍵字</span>
+                <span>計畫編號</span>
+              </div>
+            </div>
           </form>
+
+          <div className="capability-panel">
+            <p className="capability-kicker">ResearchCrawler</p>
+            <p className="capability-body">
+              我們擅長跨來源蒐集、欄位標準化與內容摘要化，讓資料可以被快速檢索、
+              比較與應用。輸入姓名即可看到完整資訊與關鍵字整理結果。
+            </p>
+            <div className="capability-grid">
+              <div className="capability-card">
+                <span>多來源蒐集</span>
+                <p>快速整合不同平台與格式的研究資料。</p>
+              </div>
+              <div className="capability-card">
+                <span>一致欄位</span>
+                <p>自動轉換為結構化欄位，便於前端呈現。</p>
+              </div>
+              <div className="capability-card">
+                <span>摘要與關鍵字</span>
+                <p>重點整理與關鍵字標註，掌握研究重點。</p>
+              </div>
+              <div className="capability-card">
+                <span>可追溯資料</span>
+                <p>保留來源脈絡，方便後續查核與擴充。</p>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section className="results">
@@ -150,8 +175,8 @@ export default function App() {
               <h2>查詢結果</h2>
               <p>
                 {lastQuery
-                  ? `顯示「${lastQuery}」的獎項資料`
-                  : "輸入姓名後即可取得獎項資料"}
+                  ? `顯示「${lastQuery}」的研究資料`
+                  : "輸入姓名後即可取得研究資料"}
               </p>
             </div>
             <div className="results-metrics">
@@ -238,7 +263,7 @@ export default function App() {
       </main>
 
       <footer className="site-footer">
-        <p>ResearchCrawler 前端展示 - 即時查詢 NSTC 獎項資料</p>
+        <p>ResearchCrawler 前端展示 - 即時查詢研究資料</p>
       </footer>
     </div>
   );
