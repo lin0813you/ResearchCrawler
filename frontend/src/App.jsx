@@ -1,307 +1,244 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 
-const sampleProjects = [
-  {
-    title: "Adaptive Robotics for Smart Manufacturing",
-    agency: "MOST",
-    year: 2024,
-    duration: "2024-2026",
-    amount: 8.4,
-    field: "Robotics",
-    summary: "Autonomous control and sensing for flexible production lines.",
-  },
-  {
-    title: "Trustworthy AI for Medical Imaging",
-    agency: "NSC",
-    year: 2022,
-    duration: "2022-2025",
-    amount: 12.1,
-    field: "AI",
-    summary: "Model validation and explainability for clinical deployment.",
-  },
-  {
-    title: "Next-Gen Battery Materials",
-    agency: "MOST",
-    year: 2019,
-    duration: "2019-2022",
-    amount: 6.3,
-    field: "Energy",
-    summary: "High-density cathode materials with improved stability.",
-  },
-  {
-    title: "Sustainable Water Treatment Systems",
-    agency: "NSC",
-    year: 2016,
-    duration: "2016-2018",
-    amount: 5.1,
-    field: "Environment",
-    summary: "Low-energy purification for municipal infrastructure.",
-  },
-];
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:8000";
 
-function formatMoney(amount) {
-  return `NTD ${amount.toFixed(1)}M`;
+function formatValue(value) {
+  if (value === null || value === undefined) {
+    return "—";
+  }
+  const text = String(value).trim();
+  return text ? text : "—";
 }
 
-function ResultCard({ project }) {
-  return (
-    <article className="result-card">
-      <h3>{project.title}</h3>
-      <div className="result-meta">
-        <span>Agency: {project.agency}</span>
-        <span>Year: {project.year}</span>
-        <span>Duration: {project.duration}</span>
-        <span>Budget: {formatMoney(project.amount)}</span>
-      </div>
-      <p>{project.summary}</p>
-      <div className="result-tags">
-        <span className="tag">{project.field}</span>
-      </div>
-    </article>
-  );
+function splitKeywords(value) {
+  return String(value || "")
+    .split(/[,;；、]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export default function App() {
-  const [name, setName] = useState("");
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("Ready to query the crawler.");
-  const [isSearching, setIsSearching] = useState(false);
-  const timeoutRef = useRef(null);
+  const [piName, setPiName] = useState("");
+  const [lastQuery, setLastQuery] = useState("");
+  const [items, setItems] = useState([]);
+  const [status, setStatus] = useState("輸入主持人姓名開始查詢。");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const { currentYear, cutoffYear } = useMemo(() => {
-    const now = new Date().getFullYear();
-    return { currentYear: now, cutoffYear: now - 9 };
-  }, []);
+  const latestYear = items.reduce((max, item) => {
+    const year = Number.parseInt(item.award_year, 10);
+    return Number.isFinite(year) ? Math.max(max, year) : max;
+  }, 0);
 
-  const projects = useMemo(() => {
-    if (!query) {
-      return [];
-    }
-    return sampleProjects
-      .filter((project) => project.year >= cutoffYear)
-      .sort((a, b) => b.year - a.year);
-  }, [query, cutoffYear]);
+  const latestYearLabel = latestYear ? String(latestYear) : "-";
+  const projectNoLabel =
+    items.find((item) => item.project_no)?.project_no || "-";
 
-  const stats = useMemo(() => {
-    if (!query || !projects.length) {
-      return {
-        count: "-",
-        total: "-",
-        mostRecent: "-",
-      };
-    }
-
-    const totalBudget = projects.reduce((sum, project) => sum + project.amount, 0);
-    return {
-      count: `${projects.length}`,
-      total: formatMoney(totalBudget),
-      mostRecent: `${projects[0].year}`,
-    };
-  }, [projects, query]);
-
-  const resultsTitle = query ? `Results for ${query}` : "Latest results";
-  const resultsSubtitle = query
-    ? projects.length
-      ? `Showing ${projects.length} projects from ${cutoffYear}-${currentYear}.`
-      : "No projects found in the last 10 years."
-    : "Enter a name to generate a 10-year project timeline.";
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const trimmed = name.trim();
-
-    setIsSearching(true);
-    setStatus("Searching NSC and MOST records...");
-
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+    const trimmed = piName.trim();
+    if (!trimmed) {
+      setError("請輸入主持人姓名。");
+      setItems([]);
+      setStatus("尚未查詢");
+      return;
     }
 
-    timeoutRef.current = setTimeout(() => {
-      setQuery(trimmed);
-      setStatus(trimmed ? `Showing results for ${trimmed}.` : "Ready to query the crawler.");
-      setIsSearching(false);
-    }, 600);
+    setLastQuery(trimmed);
+    setLoading(true);
+    setError("");
+    setStatus(`正在查詢「${trimmed}」的獎項資料...`);
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/awards?pi_name=${encodeURIComponent(trimmed)}`
+      );
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const detail =
+          payload && typeof payload === "object" && "detail" in payload
+            ? payload.detail
+            : "查詢失敗，請稍後再試。";
+        throw new Error(detail);
+      }
+
+      const list = Array.isArray(payload) ? payload : [];
+      setItems(list);
+      setStatus(list.length ? `找到 ${list.length} 筆資料` : "沒有符合的資料");
+    } catch (err) {
+      setItems([]);
+      setError(err?.message || "查詢失敗，請稍後再試。");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderTags = (value) => {
+    const tags = splitKeywords(value);
+    if (!tags.length) {
+      return <span className="tag muted">無</span>;
+    }
+    return tags.map((tag, index) => (
+      <span className="tag" key={`${tag}-${index}`}>
+        {tag}
+      </span>
+    ));
   };
 
   return (
-    <div className="page">
-      <header className="site-header">
+    <div className="app">
+      <header className="top-bar">
         <div className="brand">
           <span className="brand-mark">RC</span>
-          <div>
+          <div className="brand-copy">
             <p className="brand-title">ResearchCrawler</p>
-            <p className="brand-subtitle">NSC and MOST project intelligence</p>
+            <p className="brand-subtitle">NSTC 獎項資料搜尋</p>
           </div>
         </div>
-        <nav className="nav">
-          <a href="#how" className="nav-link">
-            How it works
-          </a>
-          <a href="#results" className="nav-link">
-            Results
-          </a>
-          <a href="#roadmap" className="nav-link">
-            Roadmap
-          </a>
-        </nav>
+        <div className="status-chip">
+          <span className={`dot ${loading ? "pulse" : ""}`} />
+          {loading ? "查詢中" : "待命"}
+        </div>
       </header>
 
       <main>
         <section className="hero">
           <div className="hero-copy">
-            <p className="hero-kicker">Track funded research in one search.</p>
-            <h1>Find faculty projects from the last 10 years.</h1>
+            <p className="hero-kicker">Research Awards Insight</p>
+            <h1>輸入主持人姓名，立即整理獎項資料</h1>
             <p className="hero-body">
-              Enter a professor name and surface NSC and MOST awards, aligned, cleaned,
-              and ready to review in one timeline.
+              前端只需回傳 pi_name，後端即時爬取與清洗資料。以下結果包含
+              計畫資訊、金額、摘要與關鍵字，讓你快速完成前端呈現。
             </p>
-            <div className="hero-metrics">
-              <div className="metric">
-                <p className="metric-value">10 years</p>
-                <p className="metric-label">Coverage window</p>
-              </div>
-              <div className="metric">
-                <p className="metric-value">NSC + MOST</p>
-                <p className="metric-label">Data sources</p>
-              </div>
-              <div className="metric">
-                <p className="metric-value">Crawler</p>
-                <p className="metric-label">Automated updates</p>
-              </div>
+            <div className="hero-badges">
+              <span>即時爬蟲</span>
+              <span>中文欄位</span>
+              <span>一致格式</span>
             </div>
           </div>
 
-          <div className="search-card">
-            <form className="search-form" onSubmit={handleSubmit}>
-              <label className="search-label" htmlFor="professor-name">
-                Professor name
-              </label>
+          <form className="search-panel" onSubmit={handleSubmit}>
+            <label htmlFor="pi-name">主持人姓名 (pi_name)</label>
+            <div className="input-row">
               <input
-                id="professor-name"
-                name="professor"
+                id="pi-name"
+                name="pi_name"
                 type="text"
-                placeholder="e.g., Li Wei, Chen Yu"
+                placeholder="例如：李文廷"
                 autoComplete="off"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
+                value={piName}
+                onChange={(event) => setPiName(event.target.value)}
+                disabled={loading}
                 required
               />
-              <button type="submit" disabled={isSearching}>
-                {isSearching ? "Searching..." : "Search projects"}
+              <button type="submit" disabled={loading}>
+                {loading ? "查詢中..." : "開始查詢"}
               </button>
-              <p className="search-hint">Results show only awards within the last 10 years.</p>
-            </form>
-            <div className="search-status">{status}</div>
-          </div>
+            </div>
+            <p className="helper">資料來源：NSTC 公開獎項資料</p>
+            <div className={`status-bar ${error ? "error" : ""}`}>
+              {error || status}
+            </div>
+          </form>
         </section>
 
-        <section id="how" className="how">
-          <div>
-            <h2>How it works</h2>
-            <p>
-              The crawler scans NSC and MOST listings, normalizes titles, and groups
-              awards by faculty name for a clean timeline.
-            </p>
-          </div>
-          <div className="how-grid">
-            <div className="how-card">
-              <p className="how-step">01</p>
-              <h3>Identify sources</h3>
-              <p>Index project lists and award records from public releases.</p>
-            </div>
-            <div className="how-card">
-              <p className="how-step">02</p>
-              <h3>Clean and align</h3>
-              <p>Normalize names, dates, and funding amounts into one schema.</p>
-            </div>
-            <div className="how-card">
-              <p className="how-step">03</p>
-              <h3>Render timeline</h3>
-              <p>Display results by year with summaries and source labels.</p>
-            </div>
-          </div>
-        </section>
-
-        <section id="results" className="results">
+        <section className="results">
           <div className="results-head">
             <div>
-              <h2>{resultsTitle}</h2>
-              <p>{resultsSubtitle}</p>
+              <h2>查詢結果</h2>
+              <p>
+                {lastQuery
+                  ? `顯示「${lastQuery}」的獎項資料`
+                  : "輸入姓名後即可取得獎項資料"}
+              </p>
             </div>
-            <div className="results-stats">
-              <div className="stat">
-                <p className="stat-label">Projects</p>
-                <p className="stat-value">{stats.count}</p>
+            <div className="results-metrics">
+              <div className="metric">
+                <span>資料筆數</span>
+                <strong>{items.length || "-"}</strong>
               </div>
-              <div className="stat">
-                <p className="stat-label">Total budget</p>
-                <p className="stat-value">{stats.total}</p>
+              <div className="metric">
+                <span>最新年度</span>
+                <strong>{latestYearLabel}</strong>
               </div>
-              <div className="stat">
-                <p className="stat-label">Most recent</p>
-                <p className="stat-value">{stats.mostRecent}</p>
+              <div className="metric">
+                <span>計畫編號</span>
+                <strong>{projectNoLabel}</strong>
               </div>
             </div>
           </div>
 
           <div className="results-list">
-            {!query && (
+            {!items.length && !loading && (
               <div className="empty-state">
-                <p>Please enter a name to search.</p>
+                <p>尚無資料顯示，請先輸入主持人姓名。</p>
               </div>
             )}
-            {query && !projects.length && (
-              <div className="empty-state">
-                <p>No projects found.</p>
-              </div>
-            )}
-            {projects.map((project) => (
-              <ResultCard key={`${project.title}-${project.year}`} project={project} />
-            ))}
-          </div>
-        </section>
 
-        <section id="roadmap" className="roadmap">
-          <div className="roadmap-copy">
-            <h2>Product roadmap</h2>
-            <p>
-              Build toward a rich research profile with filtering, exports, and alerts
-              when new awards appear.
-            </p>
-            <div className="roadmap-tags">
-              <span>Alerts</span>
-              <span>CSV export</span>
-              <span>Name disambiguation</span>
-            </div>
-          </div>
-          <div className="timeline">
-            <div className="timeline-item">
-              <div className="timeline-year">Phase 1</div>
-              <p>Single search interface and 10-year project list.</p>
-            </div>
-            <div className="timeline-item">
-              <div className="timeline-year">Phase 2</div>
-              <p>Filters by field, funding type, and institution.</p>
-            </div>
-            <div className="timeline-item">
-              <div className="timeline-year">Phase 3</div>
-              <p>Automated updates, sharing, and exported reports.</p>
-            </div>
+            {items.map((item, index) => (
+              <article
+                className="result-card"
+                key={`${item.project_no || item.plan_name || index}`}
+                style={{ "--delay": `${index * 0.05}s` }}
+              >
+                <div className="card-head">
+                  <div>
+                    <p className="label">計畫名稱</p>
+                    <h3>{formatValue(item.plan_name)}</h3>
+                  </div>
+                  <div className="pill">
+                    計畫編號 {formatValue(item.project_no)}
+                  </div>
+                </div>
+
+                <div className="card-grid">
+                  <div className="field">
+                    <span>獲獎年份</span>
+                    <strong>{formatValue(item.award_year)}</strong>
+                  </div>
+                  <div className="field">
+                    <span>主持人</span>
+                    <strong>{formatValue(item.pi_name)}</strong>
+                  </div>
+                  <div className="field">
+                    <span>機構</span>
+                    <strong>{formatValue(item.organ)}</strong>
+                  </div>
+                  <div className="field">
+                    <span>執行期程</span>
+                    <strong>{formatValue(item.period)}</strong>
+                  </div>
+                  <div className="field">
+                    <span>核定金額</span>
+                    <strong>{formatValue(item.total_amount)}</strong>
+                  </div>
+                </div>
+
+                <div className="card-section">
+                  <p className="section-title">計畫摘要</p>
+                  <p className="impact">{formatValue(item.impact)}</p>
+                </div>
+
+                <div className="card-footer">
+                  <div className="keyword-block">
+                    <span>中文關鍵字</span>
+                    <div className="tags">{renderTags(item.keywords_zh)}</div>
+                  </div>
+                  <div className="keyword-block">
+                    <span>英文關鍵字</span>
+                    <div className="tags">{renderTags(item.keywords_en)}</div>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
       </main>
 
       <footer className="site-footer">
-        <p>ResearchCrawler prototype for faculty project discovery.</p>
+        <p>ResearchCrawler 前端展示 - 即時查詢 NSTC 獎項資料</p>
       </footer>
     </div>
   );

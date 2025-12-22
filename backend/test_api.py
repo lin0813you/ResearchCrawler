@@ -28,9 +28,7 @@ def test_search_awards():
     print("=" * 60)
 
     params = {
-        "year": 113,
-        "code": "QS01",
-        "name": "李文廷",
+        "pi_name": "李文廷",
     }
 
     print(f"查詢參數: {params}")

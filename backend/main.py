@@ -9,6 +9,11 @@ app = FastAPI(
     title="Research Crawler API", description="NSTC獎項資料爬蟲API", version="1.0.0"
 )
 
+# API default query params
+DEFAULT_AWARD_YEAR = 113
+DEFAULT_AWARD_CODE = "QS01"
+DEFAULT_AWARD_ORGAN = ""
+
 # CORS中間件配置（允許前端跨域請求）
 app.add_middleware(
     CORSMiddleware,
@@ -33,25 +38,22 @@ async def health_check():
 
 @app.get("/api/awards", response_model=List[dict])
 async def search_awards(
-    year: int = Query(..., description="民國年份，例如113"),
-    code: str = Query(..., description="獎項代碼，例如QS01"),
-    name: str = Query(..., description="主持人姓名"),
-    organ: str = Query("", description="機構名稱（可選）"),
+    pi_name: str = Query(..., description="主持人姓名"),
 ):
     """
     查詢獎項資料
 
     查詢參數:
-    - year: 民國年份 (e.g., 113)
-    - code: 獎項代碼 (e.g., QS01)
-    - name: 主持人姓名
-    - organ: 機構名稱 (可選)
+    - pi_name: 主持人姓名
 
-    範例: GET /api/awards?year=113&code=QS01&name=李文廷
+    範例: GET /api/awards?pi_name=李文廷
     """
     try:
         awards = crawler_client.search_awards(
-            year=year, code=code, name=name, organ=organ
+            year=DEFAULT_AWARD_YEAR,
+            code=DEFAULT_AWARD_CODE,
+            name=pi_name,
+            organ=DEFAULT_AWARD_ORGAN,
         )
         if not awards:
             raise HTTPException(status_code=404, detail="未找到符合條件的獎項資料")
