@@ -10,7 +10,7 @@ app = FastAPI(
 )
 
 # API default query params
-DEFAULT_AWARD_YEAR = 113
+DEFAULT_AWARD_YEARS = [114, 113, 112, 111, 110]
 DEFAULT_AWARD_CODE = "QS01"
 DEFAULT_AWARD_ORGAN = ""
 
@@ -46,28 +46,31 @@ async def search_awards(
     查詢參數:
     - pi_name: 主持人姓名
 
+    說明: 自動查詢 114-110 年度
+
     範例: GET /api/awards?pi_name=李文廷
     """
     try:
-        awards = crawler_client.search_awards(
-            year=DEFAULT_AWARD_YEAR,
-            code=DEFAULT_AWARD_CODE,
-            name=pi_name,
-            organ=DEFAULT_AWARD_ORGAN,
-        )
-        if not awards:
-            raise HTTPException(status_code=404, detail="未找到符合條件的獎項資料")
-
-        # 將結果存入快取，以便後續通過plan_name直接查詢
         result_list = []
-        for award in awards:
-            award_dict = award.to_response()
-            result_list.append(award_dict)
+        for year in DEFAULT_AWARD_YEARS:
+            awards = crawler_client.search_awards(
+                year=year,
+                code=DEFAULT_AWARD_CODE,
+                name=pi_name,
+                organ=DEFAULT_AWARD_ORGAN,
+            )
 
-            # 按plan_name建立快取索引
-            if award.plan_name not in awards_cache:
-                awards_cache[award.plan_name] = []
-            awards_cache[award.plan_name].append(award_dict)
+            for award in awards:
+                award_dict = award.to_response()
+                result_list.append(award_dict)
+
+                # 按plan_name建立快取索引
+                if award.plan_name not in awards_cache:
+                    awards_cache[award.plan_name] = []
+                awards_cache[award.plan_name].append(award_dict)
+
+        if not result_list:
+            raise HTTPException(status_code=404, detail="未找到符合條件的獎項資料")
 
         return result_list
     except Exception as e:

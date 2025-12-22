@@ -2,6 +2,7 @@ import { useState } from "react";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:8000";
+const YEAR_WINDOW = [114, 113, 112, 111, 110];
 
 function formatValue(value) {
   if (value === null || value === undefined) {
@@ -22,7 +23,7 @@ export default function App() {
   const [piName, setPiName] = useState("");
   const [lastQuery, setLastQuery] = useState("");
   const [items, setItems] = useState([]);
-  const [status, setStatus] = useState("輸入主持人姓名開始查詢。");
+  const [status, setStatus] = useState("輸入主持人姓名開始查詢近五年資料。");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -30,6 +31,17 @@ export default function App() {
     const year = Number.parseInt(item.award_year, 10);
     return Number.isFinite(year) ? Math.max(max, year) : max;
   }, 0);
+
+  const yearGroups = YEAR_WINDOW.map((year) => ({ year, items: [] }));
+  const yearIndex = new Map(YEAR_WINDOW.map((year, index) => [year, index]));
+
+  items.forEach((item) => {
+    const year = Number.parseInt(item.award_year, 10);
+    const index = yearIndex.get(year);
+    if (index !== undefined) {
+      yearGroups[index].items.push(item);
+    }
+  });
 
   const latestYearLabel = latestYear ? String(latestYear) : "-";
   const projectNoLabel =
@@ -175,89 +187,123 @@ export default function App() {
               <h2>查詢結果</h2>
               <p>
                 {lastQuery
-                  ? `顯示「${lastQuery}」的研究資料`
-                  : "輸入姓名後即可取得研究資料"}
+                  ? `顯示「${lastQuery}」的研究資料（114-110 年度）`
+                  : "輸入姓名後即可取得近五年研究資料"}
               </p>
             </div>
-            <div className="results-metrics">
-              <div className="metric">
-                <span>資料筆數</span>
-                <strong>{items.length || "-"}</strong>
+            <div className="results-meta">
+              <div className="results-metrics">
+                <div className="metric">
+                  <span>資料筆數</span>
+                  <strong>{items.length || "-"}</strong>
+                </div>
+                <div className="metric">
+                  <span>最新年度</span>
+                  <strong>{latestYearLabel}</strong>
+                </div>
+                <div className="metric">
+                  <span>計畫編號</span>
+                  <strong>{projectNoLabel}</strong>
+                </div>
               </div>
-              <div className="metric">
-                <span>最新年度</span>
-                <strong>{latestYearLabel}</strong>
-              </div>
-              <div className="metric">
-                <span>計畫編號</span>
-                <strong>{projectNoLabel}</strong>
+              <div className="year-window">
+                {yearGroups.map((group) => (
+                  <div
+                    key={group.year}
+                    className={`year-chip ${
+                      group.items.length ? "active" : ""
+                    }`}
+                  >
+                    <span>{group.year} 年度</span>
+                    <strong>{group.items.length}</strong>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
           <div className="results-list">
-            {!items.length && !loading && (
+            {!lastQuery && !loading && (
               <div className="empty-state">
                 <p>尚無資料顯示，請先輸入主持人姓名。</p>
               </div>
             )}
 
-            {items.map((item, index) => (
-              <article
-                className="result-card"
-                key={`${item.project_no || item.plan_name || index}`}
-                style={{ "--delay": `${index * 0.05}s` }}
-              >
-                <div className="card-head">
-                  <div>
-                    <p className="label">計畫名稱</p>
-                    <h3>{formatValue(item.plan_name)}</h3>
-                  </div>
-                  <div className="pill">
-                    計畫編號 {formatValue(item.project_no)}
-                  </div>
-                </div>
+            {(lastQuery || items.length) &&
+              yearGroups.map((group) => (
+                <section className="year-block" key={group.year}>
+                  <header className="year-head">
+                    <h3>{group.year} 年度</h3>
+                    <span>{group.items.length} 筆</span>
+                  </header>
+                  {!group.items.length ? (
+                    <div className="empty-year">本年度尚無資料</div>
+                  ) : (
+                    <div className="year-grid">
+                      {group.items.map((item, index) => (
+                        <article
+                          className="result-card"
+                          key={`${item.project_no || item.plan_name || index}`}
+                          style={{ "--delay": `${index * 0.05}s` }}
+                        >
+                          <div className="card-head">
+                            <div>
+                              <p className="label">計畫名稱</p>
+                              <h3>{formatValue(item.plan_name)}</h3>
+                            </div>
+                            <div className="pill">
+                              計畫編號 {formatValue(item.project_no)}
+                            </div>
+                          </div>
 
-                <div className="card-grid">
-                  <div className="field">
-                    <span>獲獎年份</span>
-                    <strong>{formatValue(item.award_year)}</strong>
-                  </div>
-                  <div className="field">
-                    <span>主持人</span>
-                    <strong>{formatValue(item.pi_name)}</strong>
-                  </div>
-                  <div className="field">
-                    <span>機構</span>
-                    <strong>{formatValue(item.organ)}</strong>
-                  </div>
-                  <div className="field">
-                    <span>執行期程</span>
-                    <strong>{formatValue(item.period)}</strong>
-                  </div>
-                  <div className="field">
-                    <span>核定金額</span>
-                    <strong>{formatValue(item.total_amount)}</strong>
-                  </div>
-                </div>
+                          <div className="card-grid">
+                            <div className="field">
+                              <span>獲獎年份</span>
+                              <strong>{formatValue(item.award_year)}</strong>
+                            </div>
+                            <div className="field">
+                              <span>主持人</span>
+                              <strong>{formatValue(item.pi_name)}</strong>
+                            </div>
+                            <div className="field">
+                              <span>機構</span>
+                              <strong>{formatValue(item.organ)}</strong>
+                            </div>
+                            <div className="field">
+                              <span>執行期程</span>
+                              <strong>{formatValue(item.period)}</strong>
+                            </div>
+                            <div className="field">
+                              <span>核定金額</span>
+                              <strong>{formatValue(item.total_amount)}</strong>
+                            </div>
+                          </div>
 
-                <div className="card-section">
-                  <p className="section-title">計畫摘要</p>
-                  <p className="impact">{formatValue(item.impact)}</p>
-                </div>
+                          <div className="card-section">
+                            <p className="section-title">計畫摘要</p>
+                            <p className="impact">{formatValue(item.impact)}</p>
+                          </div>
 
-                <div className="card-footer">
-                  <div className="keyword-block">
-                    <span>中文關鍵字</span>
-                    <div className="tags">{renderTags(item.keywords_zh)}</div>
-                  </div>
-                  <div className="keyword-block">
-                    <span>英文關鍵字</span>
-                    <div className="tags">{renderTags(item.keywords_en)}</div>
-                  </div>
-                </div>
-              </article>
-            ))}
+                          <div className="card-footer">
+                            <div className="keyword-block">
+                              <span>中文關鍵字</span>
+                              <div className="tags">
+                                {renderTags(item.keywords_zh)}
+                              </div>
+                            </div>
+                            <div className="keyword-block">
+                              <span>英文關鍵字</span>
+                              <div className="tags">
+                                {renderTags(item.keywords_en)}
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ))}
           </div>
         </section>
       </main>
