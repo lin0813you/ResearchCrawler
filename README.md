@@ -1,299 +1,146 @@
-# Research Crawler - 全棧項目
+# ResearchCrawler
 
-NSTC 獎項資料爬蟲與可視化平台
+ResearchCrawler 是一個全端專案，使用者只需輸入主持人姓名（pi_name），後端會自動查詢近五年（114–110 年度）的研究資料並回傳，前端將資料以中文欄位完整呈現。
 
-## 📁 項目結構
+## 功能重點
+
+- 單一輸入（pi_name）完成查詢
+- 自動涵蓋近五年資料（114–110）
+- 結果包含計畫名稱、主持人、機構、期程、金額、摘要、關鍵字、計畫編號
+- 支援 AWS Serverless 部署（Lambda + API Gateway + S3 + CloudFront）
+
+## 專案結構
 
 ```
 ResearchCrawler/
-├── backend/                    # 後端 REST API
-│   ├── main.py                # FastAPI 主應用
-│   ├── crawler.py             # 爬蟲邏輯
-│   ├── models.py              # 數據模型
-│   ├── config.py              # 配置檔案
-│   ├── requirements.txt        # Python 依賴
-│   ├── lambda_handler.py       # Lambda 入口（Mangum）
-│   ├── test_api.py            # API 測試腳本
-│   ├── run.sh / run.bat       # 啟動腳本
-│   └── README.md              # 後端文檔
-│
-├── frontend/                   # 前端應用
+├── backend/                 # FastAPI 後端與爬蟲
+│   ├── main.py
+│   ├── crawler.py
+│   ├── models.py
+│   ├── lambda_handler.py    # Lambda 入口（Mangum）
+│   └── requirements.txt
+├── frontend/                # React + Vite 前端
 │   ├── src/
-│   │   ├── App.jsx            # 主應用組件
-│   │   ├── main.jsx           # 入口文件
-│   │   └── styles.css         # 全局樣式
-│   ├── index.html             # HTML 入口
-│   ├── package.json           # Node.js 依賴
-│   └── vite.config.js         # Vite 配置
-│
-├── template.yaml              # AWS SAM Serverless 部署
-└── README.md                  # 本文件
+│   ├── index.html
+│   └── vite.config.js
+├── template.yaml            # AWS SAM Serverless 部署
+└── README.md
 ```
 
-## 🚀 快速開始
+## 本機啟動
 
-### 後端設置
-
-1. **安裝依賴**
+### 後端
 
 ```bash
 cd backend
 pip install -r requirements.txt
-```
-
-2. **啟動服務**
-
-Windows:
-
-```bash
-run.bat
-```
-
-Linux/Mac:
-
-```bash
-chmod +x run.sh
-./run.sh
-```
-
-或直接使用 Python:
-
-```bash
 python main.py
 ```
 
-服務會在 `http://localhost:8000` 啟動
+服務會啟動在 `http://localhost:8000`
 
-3. **檢查 API 文檔**
-   訪問 `http://localhost:8000/docs` 查看完整的 API 文檔
-
-### 前端設置（計劃）
+### 前端
 
 ```bash
 cd frontend
 npm install
+```
+
+建立 `frontend/.env` 並填入 API Base URL：
+
+```ini
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+啟動：
+
+```bash
 npm run dev
 ```
 
-## ?? Serverless 部署（AWS SAM）
+## API 端點
 
-1. **安裝 AWS SAM CLI**
-   - https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html
+| 方法 | 端點                              | 說明 |
+| ---- | --------------------------------- | ---- |
+| GET  | `/api/health`                     | 健康檢查 |
+| GET  | `/api/awards`                     | 依 pi_name 查詢近五年資料 |
+| GET  | `/api/awards/{plan_name}`         | 依計畫名稱查詢（需先呼叫 /api/awards） |
+| GET  | `/api/awards/detail/{project_no}` | 依計畫編號取得詳細資訊 |
 
-2. **建置 Lambda 套件（建議使用容器，確保 lxml 可用）**
-
-```bash
-sam build --use-container
-```
-
-3. **部署**
+查詢範例：
 
 ```bash
-sam deploy --guided
+curl "http://localhost:8000/api/awards?pi_name=李文廷"
 ```
 
-部署完成後，輸出會顯示 API Gateway 的 URL。前端可用 `VITE_API_BASE_URL` 指向該 URL。
-
-## 📊 API 端點
-
-### 基礎端點
-
-| 方法 | 端點                              | 說明             |
-| ---- | --------------------------------- | ---------------- |
-| GET  | `/api/health`                     | 健康檢查         |
-| GET  | `/api/awards`                     | 查詢獎項資料     |
-| GET  | `/api/awards/{plan_name}`         | 根據計畫名稱查詢 |
-| GET  | `/api/awards/detail/{project_no}` | 獲取計畫詳細信息 |
-
-### 查詢示例
-
-**查詢獎項**
-
-```bash
-curl "http://localhost:8000/api/awards?year=113&code=QS01&name=李文廷"
-```
-
-**根據計畫名稱查詢**
-
-```bash
-curl "http://localhost:8000/api/awards/計畫名稱"
-```
-
-**獲取詳細信息**
-
-```bash
-curl "http://localhost:8000/api/awards/detail/113WFA2110082"
-```
-
-## 📋 返回的數據欄位
-
-所有 API 返回包含以下字段的 JSON 數據：
+## 回傳資料欄位
 
 ```json
 {
-  "award_year": "113", // 獲獎年份
-  "pi_name": "主持人姓名", // 主持人姓名
-  "organ": "機構名稱", // 所屬機構
-  "plan_name": "計畫名稱", // 計畫名稱 ⭐ API 路由使用
-  "period": "2024/08/01～2025/07/31", // 執行期限
-  "total_amount": "1,500,000", // 總核定金額
-  "impact": "計畫概述...", // 計畫概述
-  "keywords_zh": "關鍵詞1;關鍵詞2", // 中文關鍵字
-  "keywords_en": "keyword1;keyword2", // 英文關鍵字
-  "project_no": "113WFA2110082" // 計畫編號 ⭐ 用於獲取詳細信息
+  "award_year": "113",
+  "pi_name": "主持人姓名",
+  "organ": "機構名稱",
+  "plan_name": "計畫名稱",
+  "period": "2024/08/01~2025/07/31",
+  "total_amount": "990,000元",
+  "impact": "計畫摘要...",
+  "keywords_zh": "中文關鍵字",
+  "keywords_en": "英文關鍵字",
+  "project_no": "113WFA2110082"
 }
 ```
 
-## 🏗️ 後端架構設計
+## AWS Serverless 部署（SAM CLI）
 
-### 核心組件
+### 前置條件
 
-1. **crawler.py** - 爬蟲層
+- AWS CLI 已設定 `aws configure`
+- SAM CLI 已安裝
 
-   - `TLS12Adapter`: 自訂 HTTPS 適配器
-   - `NSTCAwardClient`: 爬蟲客戶端，負責網絡請求和數據解析
-
-2. **models.py** - 數據層
-
-   - `AwardItem`: 獎項數據模型，使用 dataclass 定義
-
-3. **main.py** - API 層
-   - FastAPI 應用
-   - 路由定義
-   - 快取管理
-   - 錯誤處理
-
-### 快取機制
-
-- **類型**: 內存字典快取
-- **Key**: 計畫名稱 (plan_name)
-- **Value**: 獎項數據列表
-- **作用**: 支持通過 `/api/awards/{plan_name}` 直接查詢
-
-### 使用流程
-
-```
-前端請求查詢
-    ↓
-main.py 路由處理
-    ↓
-crawler.py 發起爬蟲
-    ↓
-解析網頁並構建 AwardItem
-    ↓
-存入快取 + 返回響應
-    ↓
-前端接收並渲染
-```
-
-## 🔧 測試
-
-### 運行 API 測試
+### 部署後端（Lambda + API Gateway + S3 + CloudFront）
 
 ```bash
-cd backend
-python test_api.py
+sam build --use-container
+sam deploy --guided
 ```
 
-測試腳本會執行以下檢查：
+部署完成後，CloudFormation Outputs 會提供：
 
-- ✅ 健康檢查
-- ✅ 查詢獎項數據
-- ✅ 根據計畫名稱查詢
-- ✅ 獲取計畫詳細信息
+- `ApiEndpoint`：API Gateway URL
+- `FrontendBucketName`：前端 S3 Bucket 名稱
+- `FrontendDistributionDomain`：CloudFront 前端網址
 
-## 📝 配置
+### 部署前端（S3 + CloudFront）
 
-編輯 `backend/config.py` 自訂以下設置：
+1. 設定 API Base URL：
 
-```python
-# 服務器配置
-SERVER_HOST = "0.0.0.0"
-SERVER_PORT = 8000
-DEBUG = True
-
-# 爬蟲超時
-CRAWLER_TIMEOUT = 30
-
-# CORS 配置（前端域名）
-CORS_ORIGINS = ["http://localhost:5173"]
+```ini
+VITE_API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com
 ```
 
-## 🌐 前端集成指南
+2. 建置並上傳：
 
-前端可通過以下方式調用 API：
-
-### 使用 fetch
-
-```javascript
-// 查詢獎項
-const response = await fetch(
-  "http://localhost:8000/api/awards?year=113&code=QS01&name=李文廷"
-);
-const awards = await response.json();
+```bash
+cd frontend
+npm install
+npm run build
+aws s3 sync dist s3://<FrontendBucketName> --delete
 ```
 
-### 使用 axios
+3. 使用 CloudFront 網址開啟前端：
 
-```javascript
-import axios from "axios";
-
-const awards = await axios.get("http://localhost:8000/api/awards", {
-  params: {
-    year: 113,
-    code: "QS01",
-    name: "李文廷",
-  },
-});
+```
+https://<FrontendDistributionDomain>
 ```
 
-## 🐛 常見問題
+若更新前端內容，可使用 CloudFront Invalidation：
 
-### Q: 獲得 "Connection refused" 錯誤
+```bash
+aws cloudfront create-invalidation --distribution-id <DistributionId> --paths "/*"
+```
 
-**A**: 確保後端服務已啟動在 `http://localhost:8000`
+## 注意事項
 
-### Q: 獲得 CORS 錯誤
-
-**A**: 檢查 `main.py` 中的 CORS 配置，確保前端域名在允許列表中
-
-### Q: 爬蟲超時
-
-**A**: 增加 `CRAWLER_TIMEOUT` 的值或檢查網絡連接
-
-## 🚧 計劃中的改進
-
-- [ ] 數據庫持久化（SQLite/PostgreSQL）
-- [ ] Redis 快取層
-- [ ] 異步爬蟲任務隊列（Celery）
-- [ ] 前端 UI 完善
-- [ ] 單元測試和集成測試
-- [ ] Docker 容器化部署
-- [ ] CI/CD 流程
-
-## 📚 技術棧
-
-### 後端
-
-- **Python 3.8+**
-- **FastAPI** - 現代 Web 框架
-- **Uvicorn** - ASGI 服務器
-- **BeautifulSoup4** - HTML 解析
-- **Requests** - HTTP 客戶端
-
-### 前端
-
-- **React + Vite** - 現代化前端框架
-- **TBD** - 組件庫/樣式方案
-
-## 📄 許可證
-
-MIT License
-
-## 👤 作者
-
-Created with ❤️
-
----
-
-**需要幫助？** 查看各個模塊的 README.md 文件或查閱 API 文檔 `/docs`
+- 前端 `VITE_API_BASE_URL` 需在 build 前設定，改值後請重新 build
+- `/api/awards/{plan_name}` 依賴快取，需要先呼叫 `/api/awards`
+- 若要限制 CORS，請在 `template.yaml` 或 FastAPI 設定允許來源
