@@ -309,7 +309,7 @@ export default function App() {
       </main>
 
       <footer className="site-footer">
-        <p>ResearchCrawler 前端展示 - 即時查詢研究資料</p>
+        <p>ResearchCrawler - 即時查詢研究資料</p>
       </footer>
     </div>
   );
