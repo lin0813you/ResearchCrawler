@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: ResearchCrawler serverless API (FastAPI on Lambda)
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 28
+    MemorySize: 1024
+    Architectures:
+      - x86_64
+
+Resources:
+  ResearchCrawlerApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - OPTIONS
+        AllowHeaders:
+          - "*"
+
+  ResearchCrawlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend
+      Handler: lambda_handler.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Events:
+        ProxyRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ResearchCrawlerApi
+            Path: /
+            Method: ANY
+        ProxyAny:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ResearchCrawlerApi
+            Path: /{proxy+}
+            Method: ANY
+
+Outputs:
+  ApiEndpoint:
+    Description: ResearchCrawler HttpApi endpoint
+    Value: !Sub "https://${ResearchCrawlerApi}.execute-api.${AWS::Region}.amazonaws.com"

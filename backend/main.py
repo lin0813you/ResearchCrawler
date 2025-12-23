@@ -5,119 +5,129 @@ from typing import List, Optional, Dict
 from crawler import NSTCAwardClient
 from models import AwardItem
 
-app = FastAPI(
-    title="Research Crawler API", description="NSTC獎項資料爬蟲API", version="1.0.0"
-)
-
 # API default query params
 DEFAULT_AWARD_YEARS = [114, 113, 112, 111, 110]
 DEFAULT_AWARD_CODE = "QS01"
 DEFAULT_AWARD_ORGAN = ""
 
-# CORS中間件配置（允許前端跨域請求）
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # 開發環境允許所有來源，生產環境應改為具體的域名
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# 初始化爬蟲客戶端
-crawler_client = NSTCAwardClient()
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="Research Crawler API",
+        description="NSTC獎項資料爬蟲API",
+        version="1.0.0",
+    )
 
-# 快取：存儲已爬取的數據，key為plan_name
-awards_cache: Dict[str, List[dict]] = {}
+    # CORS中間件配置（允許前端跨域請求）
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # 開發環境允許所有來源，生產環境應改為具體的域名
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
+    # 初始化爬蟲客戶端
+    crawler_client = NSTCAwardClient()
 
-@app.get("/api/health")
-async def health_check():
-    """健康檢查端點"""
-    return {"status": "healthy"}
+    # 快取：存儲已爬取的數據，key為plan_name
+    awards_cache: Dict[str, List[dict]] = {}
 
+    @app.get("/api/health")
+    async def health_check():
+        """健康檢查端點"""
+        return {"status": "healthy"}
 
-@app.get("/api/awards", response_model=List[dict])
-async def search_awards(
-    pi_name: str = Query(..., description="主持人姓名"),
-):
-    """
-    查詢獎項資料
+    @app.get("/api/awards", response_model=List[dict])
+    async def search_awards(
+        pi_name: str = Query(..., description="主持人姓名"),
+    ):
+        """
+        查詢獎項資料
 
-    查詢參數:
-    - pi_name: 主持人姓名
+        查詢參數:
+        - pi_name: 主持人姓名
 
-    說明: 自動查詢 114-110 年度
+        說明: 自動查詢 114-110 年度
 
-    範例: GET /api/awards?pi_name=李文廷
-    """
-    try:
-        result_list = []
-        for year in DEFAULT_AWARD_YEARS:
-            awards = crawler_client.search_awards(
-                year=year,
-                code=DEFAULT_AWARD_CODE,
-                name=pi_name,
-                organ=DEFAULT_AWARD_ORGAN,
-            )
+        範例: GET /api/awards?pi_name=李文廷
+        """
+        try:
+            result_list = []
+            for year in DEFAULT_AWARD_YEARS:
+                awards = crawler_client.search_awards(
+                    year=year,
+                    code=DEFAULT_AWARD_CODE,
+                    name=pi_name,
+                    organ=DEFAULT_AWARD_ORGAN,
+                )
 
-            for award in awards:
-                award_dict = award.to_response()
-                result_list.append(award_dict)
+                for award in awards:
+                    award_dict = award.to_response()
+                    result_list.append(award_dict)
 
-                # 按plan_name建立快取索引
-                if award.plan_name not in awards_cache:
-                    awards_cache[award.plan_name] = []
-                awards_cache[award.plan_name].append(award_dict)
+                    # 按plan_name建立快取索引
+                    if award.plan_name not in awards_cache:
+                        awards_cache[award.plan_name] = []
+                    awards_cache[award.plan_name].append(award_dict)
 
-        if not result_list:
-            raise HTTPException(status_code=404, detail="未找到符合條件的獎項資料")
+            if not result_list:
+                raise HTTPException(
+                    status_code=404, detail="未找到符合條件的獎項資料"
+                )
 
-        return result_list
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"查詢失敗: {str(e)}")
+            return result_list
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"查詢失敗: {str(e)}")
 
+    @app.get("/api/awards/{plan_name}", response_model=List[dict])
+    async def search_awards_by_plan_name(
+        plan_name: str = Path(..., description="計畫名稱"),
+    ):
+        """
+        根據計畫名稱查詢獎項資料
 
-@app.get("/api/awards/{plan_name}", response_model=List[dict])
-async def search_awards_by_plan_name(
-    plan_name: str = Path(..., description="計畫名稱"),
-):
-    """
-    根據計畫名稱查詢獎項資料
+        路由參數:
+        - plan_name: 計畫名稱（URL編碼）
 
-    路由參數:
-    - plan_name: 計畫名稱（URL編碼）
+        範例: GET /api/awards/計畫名稱
 
-    範例: GET /api/awards/計畫名稱
-
-    說明：從快取中查詢，需要先使用 /api/awards 端點進行查詢以填充快取
-    """
-    if plan_name not in awards_cache:
-        raise HTTPException(
-            status_code=404,
-            detail=f"未找到計畫名稱 '{plan_name}' 的數據。請先使用 /api/awards 端點查詢以填充快取。",
-        )
-    return awards_cache[plan_name]
-
-
-@app.get("/api/awards/detail/{project_no}", response_model=dict)
-async def get_impact_detail(project_no: str):
-    """
-    獲取特定計畫編號的詳細信息
-
-    路由參數:
-    - project_no: 計畫編號 (e.g., 113WFA2110082)
-
-    範例: GET /api/awards/detail/113WFA2110082
-    """
-    try:
-        impact = crawler_client.fetch_impact_detail(project_no)
-        if not impact:
+        說明：從快取中查詢，需要先使用 /api/awards 端點進行查詢以填充快取
+        """
+        if plan_name not in awards_cache:
             raise HTTPException(
-                status_code=404, detail=f"未找到計畫編號 {project_no} 的詳細信息"
+                status_code=404,
+                detail=(
+                    f"未找到計畫名稱 '{plan_name}' 的數據。"
+                    "請先使用 /api/awards 端點查詢以填充快取。"
+                ),
             )
-        return {"project_no": project_no, "impact": impact}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"獲取詳細信息失敗: {str(e)}")
+        return awards_cache[plan_name]
+
+    @app.get("/api/awards/detail/{project_no}", response_model=dict)
+    async def get_impact_detail(project_no: str):
+        """
+        獲取特定計畫編號的詳細信息
+
+        路由參數:
+        - project_no: 計畫編號 (e.g., 113WFA2110082)
+
+        範例: GET /api/awards/detail/113WFA2110082
+        """
+        try:
+            impact = crawler_client.fetch_impact_detail(project_no)
+            if not impact:
+                raise HTTPException(
+                    status_code=404, detail=f"未找到計畫編號 {project_no} 的詳細信息"
+                )
+            return {"project_no": project_no, "impact": impact}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"獲取詳細信息失敗: {str(e)}")
+
+    return app
+
+
+app = create_app()
 
 
 if __name__ == "__main__":

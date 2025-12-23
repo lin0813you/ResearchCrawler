@@ -40,6 +40,7 @@ dist/
 build/
 .env
 .env.local
+.env.*
 .env.*.local
 
 # IDE
@@ -70,3 +71,6 @@ logs/
 htmlcov/
 
 *.code-workspace
+
+# AWS SAM
+.aws-sam/

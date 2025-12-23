@@ -12,6 +12,7 @@ ResearchCrawler/
 │   ├── models.py              # 數據模型
 │   ├── config.py              # 配置檔案
 │   ├── requirements.txt        # Python 依賴
+│   ├── lambda_handler.py       # Lambda 入口（Mangum）
 │   ├── test_api.py            # API 測試腳本
 │   ├── run.sh / run.bat       # 啟動腳本
 │   └── README.md              # 後端文檔
@@ -25,6 +26,7 @@ ResearchCrawler/
 │   ├── package.json           # Node.js 依賴
 │   └── vite.config.js         # Vite 配置
 │
+├── template.yaml              # AWS SAM Serverless 部署
 └── README.md                  # 本文件
 ```
 
@@ -72,6 +74,25 @@ cd frontend
 npm install
 npm run dev
 ```
+
+## ?? Serverless 部署（AWS SAM）
+
+1. **安裝 AWS SAM CLI**
+   - https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html
+
+2. **建置 Lambda 套件（建議使用容器，確保 lxml 可用）**
+
+```bash
+sam build --use-container
+```
+
+3. **部署**
+
+```bash
+sam deploy --guided
+```
+
+部署完成後，輸出會顯示 API Gateway 的 URL。前端可用 `VITE_API_BASE_URL` 指向該 URL。
 
 ## 📊 API 端點
 
