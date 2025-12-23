@@ -67,7 +67,7 @@ Resources:
             Effect: Allow
             Principal: '*'
             Action: s3:GetObject
-            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Resource: !Sub ${FrontendBucket.Arn}/*
 
   FrontendDistribution:
     Type: AWS::CloudFront::Distribution
@@ -77,7 +77,7 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: FrontendS3Origin
-            DomainName: !Sub "${FrontendBucket}.s3-website-${AWS::Region}.amazonaws.com"
+            DomainName: !Sub ${FrontendBucket}.s3-website-${AWS::Region}.amazonaws.com
             CustomOriginConfig:
               OriginProtocolPolicy: http-only
         DefaultCacheBehavior:
