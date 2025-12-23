@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: "2010-09-09"
+AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: ResearchCrawler serverless API (FastAPI on Lambda)
 
@@ -16,12 +16,12 @@ Resources:
     Properties:
       CorsConfiguration:
         AllowOrigins:
-          - "*"
+          - '*'
         AllowMethods:
           - GET
           - OPTIONS
         AllowHeaders:
-          - "*"
+          - '*'
 
   ResearchCrawlerFunction:
     Type: AWS::Serverless::Function
@@ -44,7 +44,76 @@ Resources:
             Path: /{proxy+}
             Method: ANY
 
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        IgnorePublicAcls: false
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicRead
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: FrontendS3Origin
+            DomainName: !Sub "${FrontendBucket}.s3-website-${AWS::Region}.amazonaws.com"
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          TargetOriginId: FrontendS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
 Outputs:
   ApiEndpoint:
     Description: ResearchCrawler HttpApi endpoint
-    Value: !Sub "https://${ResearchCrawlerApi}.execute-api.${AWS::Region}.amazonaws.com"
+    Value: !Sub https://${ResearchCrawlerApi}.execute-api.${AWS::Region}.amazonaws.com
+  FrontendBucketName:
+    Description: S3 bucket name for frontend hosting
+    Value: !Ref FrontendBucket
+  FrontendWebsiteURL:
+    Description: S3 static website endpoint
+    Value: !GetAtt FrontendBucket.WebsiteURL
+  FrontendDistributionDomain:
+    Description: CloudFront distribution domain
+    Value: !GetAtt FrontendDistribution.DomainName
